@@ -3,4 +3,4 @@ Just for personal reference - some functions to simplify creating flextables for
 
 Contains functions demographise() and demographise_anova(), plus examples of creating those tables. 
 
-Will need to be added to a .RProj file to get here::here() calls to work
+Will need to add a .RProj file to get here::here() calls to work
