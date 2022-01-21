@@ -1,0 +1,844 @@
+---
+title: "Wellbeing Survey"
+subtitle: "Comparison between three semesters - S2 2020, S1 2021, and S2 2021"
+author: "Nathan Henry"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+# Introduction
+
+This file contains comparisons of physical, social and mental wellbeing scores between all semesters, broken down by the different subgroups in each question. 
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+pacman::p_load(magrittr,
+               dplyr,
+               tidyverse,
+               kableExtra, 
+               flextable, 
+               car,
+               dunn.test)
+
+# Get helper functions
+source(here::here('2021 S1 analysis', 'R code', '0.1 helper_functions.R'))
+
+```
+
+```{r load dataset and perform mutations}
+
+# comb_data - contains both S1 2021 and S2 2020
+comb_data <- readRDS(here::here('2021 S2 analysis', 'RData', '0.0 dataset_s2_2021.rds')) %>% 
+  # Remove indiv that don't meet criteria explained above
+  filter(Progress >= 20 & (!is.na(Q5.5) | !is.na(Q5.6) | !is.na(Q5.7)))
+
+# Convert semester to ordered factor
+comb_data$Semester %<>% factor(levels=c('S2 2020', 'S1 2021', 'S2 2021'))
+
+## Calculate wellbeing scores - seven questions which are scored from 1 to 5 (total score between 7 and 35) - 'statements about feelings and thoughts'
+comb_data %<>%
+  rowwise() %>%
+  mutate(Q5.4_total_raw_score = sum(Q5.4_1, Q5.4_2, Q5.4_3,
+                                Q5.4_4, Q5.4_5, Q5.4_6, Q5.4_7)) %>%
+  # transform to metric score
+  mutate(Q5.4_total_metric_score = case_when(Q5.4_total_raw_score ==  7 ~ 7.00,
+                                             Q5.4_total_raw_score ==  8 ~ 9.51,
+                                             Q5.4_total_raw_score ==  9 ~ 11.25,
+                                             Q5.4_total_raw_score == 10 ~ 12.40,
+                                             Q5.4_total_raw_score == 11 ~ 13.33,
+                                             Q5.4_total_raw_score == 12 ~ 14.08,
+                                             Q5.4_total_raw_score == 13 ~ 14.75,
+                                             Q5.4_total_raw_score == 14 ~ 15.32,
+                                             Q5.4_total_raw_score == 15 ~ 15.84,
+                                             Q5.4_total_raw_score == 16 ~ 16.36,
+                                             Q5.4_total_raw_score == 17 ~ 16.88,
+                                             Q5.4_total_raw_score == 18 ~ 17.43,
+                                             Q5.4_total_raw_score == 19 ~ 17.98,
+                                             Q5.4_total_raw_score == 20 ~ 18.59,
+                                             Q5.4_total_raw_score == 21 ~ 19.25,
+                                             Q5.4_total_raw_score == 22 ~ 19.98,
+                                             Q5.4_total_raw_score == 23 ~ 20.73,
+                                             Q5.4_total_raw_score == 24 ~ 21.54,
+                                             Q5.4_total_raw_score == 25 ~ 22.35,
+                                             Q5.4_total_raw_score == 26 ~ 23.21,
+                                             Q5.4_total_raw_score == 27 ~ 24.11,
+                                             Q5.4_total_raw_score == 28 ~ 25.03,
+                                             Q5.4_total_raw_score == 29 ~ 26.02,
+                                             Q5.4_total_raw_score == 30 ~ 27.03,
+                                             Q5.4_total_raw_score == 31 ~ 28.13,
+                                             Q5.4_total_raw_score == 32 ~ 29.31,
+                                             Q5.4_total_raw_score == 33 ~ 30.70,
+                                             Q5.4_total_raw_score == 34 ~ 32.55,
+                                             Q5.4_total_raw_score == 35 ~ 35.00))
+
+# Get table just for students
+stud_data <- comb_data %>% 
+  filter(Q2.1 == 1)
+
+```
+
+# Summary statistics
+
+The section below contains some broad summary statistics. Later sections contain a more in-depth analysis of these trends.
+
+Firstly, I examined the change in physical, social and mental wellbeing reported by students and teachers in all semesters. S2 2021 saw an increase in the number of 'Worse' scores for all of these metrics, in a similar fashion to S2 2020. This can be at least partially attributed to the COVID-19 lockdown during this period. 
+
+```{r Physical social mental wellbeing compare}
+
+# Change in physical wellbeing 
+comb_data %>% 
+  ggplot(aes(x=factor(Q5.5), fill=Semester)) +
+  geom_histogram(stat='count', position='dodge', colour='black') +
+  scale_x_discrete(labels=c('1' = 'Worse', 
+                            '2' = 'No change',
+                            '3' = 'Better')) +
+  labs(title='Change in physical wellbeing since previous semester', y='Count', x='') +
+  theme_bw() + 
+  scale_fill_brewer(palette=2)
+
+# Change in social wellbeing
+comb_data %>% 
+  ggplot(aes(x=factor(Q5.6), fill=Semester)) +
+  geom_histogram(stat='count', position='dodge', colour='black') +
+  scale_x_discrete(labels=c('1' = 'Worse', 
+                            '2' = 'No change',
+                            '3' = 'Better')) +
+  labs(title='Change in social wellbeing since previous semester', y='Count', x='') +
+  theme_bw() + 
+  scale_fill_brewer(palette=3)
+
+# Change in mental wellbeing
+comb_data %>% 
+  ggplot(aes(x=factor(Q5.7), fill=Semester)) +
+  geom_histogram(stat='count', position='dodge', colour='black') +
+  scale_x_discrete(labels=c('1' = 'Worse', 
+                            '2' = 'No change',
+                            '3' = 'Better')) +
+  labs(title='Change in mental wellbeing since previous semester', y='Count', x='') +
+  theme_bw() + 
+  scale_fill_brewer(palette=4)
+
+```
+
+To break these results down further, I examined the physical, social and mental wellbeing scores reported by students and staff in both semesters. 
+
+While physical wellbeing scores remained relatively stable across semesters, a notable increase in 'Terrible' scores was recorded for social wellbeing in S2 2021, and a decrease in median mental wellbeing scores was observed in S2 2021. Again, these results align with the idea that social and mental wellbeing were negatively impacted by the COVID-19 lockdown, but it is possible that physical activity was maintained by a large number of participants.
+
+```{r Overall physical social mental wellbeing}
+
+# Physical wellbeing
+comb_data %>% 
+  ggplot(aes(x=factor(Q5.1), fill=Semester)) +
+  geom_histogram(stat='count', position='dodge', colour='black') +
+  scale_x_discrete(labels=c('1' = '1 - Terrible', 
+                            '2' = '2',
+                            '3' = '3 - Okay',
+                            '4' = '4',
+                            '5' = '5 - Great')) +
+  labs(title="Respondents' rating of their physical wellbeing", y='Count', x='Rating of wellbeing') +
+  theme_bw() + 
+  scale_fill_brewer(palette=2)
+
+# Social wellbeing
+comb_data %>% 
+  ggplot(aes(x=factor(Q5.2), fill=Semester)) +
+  geom_histogram(stat='count', position='dodge', colour='black') +
+  scale_x_discrete(labels=c('1' = '1 - Terrible', 
+                            '2' = '2',
+                            '3' = '3 - Okay',
+                            '4' = '4',
+                            '5' = '5 - Great')) +
+  labs(title="Respondents' rating of their social wellbeing", y='Count', x='Rating of wellbeing') +
+  theme_bw() + 
+  scale_fill_brewer(palette=3)
+
+# Mental wellbeing
+
+# # Histogram
+# comb_data %>%
+#   ggplot(aes(x=factor(Q5.4_total_metric_score), fill=Semester)) +
+#   geom_histogram(stat='count', position='dodge', colour='black') +
+#   labs(title="Respondents' rating of their mental wellbeing", y='Count', x='Rating of wellbeing') +
+#   theme_bw() +
+#   scale_fill_brewer(palette=4)
+
+# Boxplot
+comb_data %>% 
+  ggplot(aes(y=Q5.4_total_metric_score, x=Semester, fill=Semester)) +
+  geom_boxplot(color='black') +
+  labs(title="Respondents' rating of their mental wellbeing", y='Total mental wellbeing score') +
+  theme_bw() +
+  theme(legend.position='none') +
+  scale_fill_brewer(palette=4)
+
+```
+
+# Detailed comparisons of wellbeing between subgroups
+
+Next, I compared wellbeing variables for both semesters, breaking this data down by multiple demographics, as shown below. 
+
+For comparing each filtered group's wellbeing between semesters, I performed a Kruskal-Wallis test to determine if there was a significant difference in the distribution of responses from each group. In cases where a significant result was observed, Dunn's test was used to perform multiple pairwise comparisons to determine which pairs of semesters had significant differences in wellbeing scores. Any significant results were recorded in the footnotes for each table. 
+
+Most significant differences between semesters for individual subgroups were recorded for social wellbeing, with one significant difference recorded for mental wellbeing. 
+
+<b>Click through the tabs for each demographic to view each variable breakdown.</b>
+
+```{r}
+
+## demographise() creates wellbeing tables filtered by demographic, using the Kruskal-Wallis test. 
+# group_1 - the other variable to group the data by (along with Semester)
+# summ_1 - wellbeing variable to summarise (i.e. Q5.1, Q5.2, Q5.4)
+# tab_title - flextable title
+# All names must be in quotes, e.g. demographise(group_1='Q5.6', ...)
+
+# PLAN:
+# Kruskal-Wallis test for comparing semesters
+# If significant p-value, follow up with Dunns test for pairwise comparisons. This is preferred to Mann-Whitney U test apparently - retains factor ranking better. 
+
+demographise <- function(data_set=comb_data, group_1, summ_1, tab_title) {
+  
+  # Filter data_set for NAs in group_1
+  data_set %<>% filter(!is.na(!!sym(group_1)))
+  
+  # Get number of levels of group_1
+  nlev <- nlevels(data_set[[group_1]])
+  
+  # Prepare variables for loop
+  res_kw <- list()
+  p_kw <- list()
+  res_dunn <- list()
+  df_dunn <- list()
+  
+  # Prep formula
+  kw_formula <- formula(paste0('`', summ_1, '` ~ Semester'))
+  
+  # Perform one-way Kruskal Wallis test to test for differences in group medians, for each level in group_1
+  for (i in 1:nlev) {
+    
+    # Filter data for group_1 level
+    filtered_data <- data_set[data_set[[group_1]] == levels(data_set[[group_1]])[i][1], ] # Data filtered for group_1
+    
+    # Try kruskal-wallis test. This will fail if not enough observations
+    kruskal_try <- try(kruskal.test(kw_formula, filtered_data), silent=TRUE)
+    
+    # Only record results of kruskal.test if there are no errors. Otherwise, print 'Error'.
+    if (class(kruskal_try) == 'try-error') {
+      # print('Warning: kruskal_try threw an error - almost certainly because not enough observations.') # Can't keep this for knitted docs
+      res_kw[i] <- 'Error'
+      p_kw[i] <- 'Error'
+      df_dunn[i] <- 'Error'
+    } else {
+      res_kw[[i]] <- kruskal_try
+      p_kw[i] <- kruskal_try$p.value
+      
+      # If significant result, then use Dunn's test, and store results in data frame
+      if (kruskal_try$p.value <= 0.05) {
+        res_dunn[[i]] <- dunn.test(as.numeric(filtered_data[[summ_1]]), 
+                                   filtered_data$Semester, 
+                                   method='bonferroni')
+        df_dunn[[i]] <- data.frame(res_dunn[[i]]$P.adjusted, res_dunn[[i]]$comparisons) %>% 
+          rename(p_adjusted = res_dunn..i...P.adjusted,
+                 comparisons = res_dunn..i...comparisons)
+      }
+    }
+  }
+  
+  # Create flextable
+  flex <- data_set %>% 
+    group_by(Semester, !!sym(group_1), .drop=FALSE) %>% 
+    summarise(Mean = signif(mean(!!sym(summ_1), na.rm=TRUE), 
+                           2), 
+              Median = signif(median(!!sym(summ_1), na.rm=TRUE), 
+                           2), 
+              SD = signif(sd(!!sym(summ_1), na.rm=TRUE),
+                         2),
+              n = n()) %>%
+    flextable() %>% 
+    ### Merge rows for each Semester grouping
+    merge_at(i=1:nlev, j=1) %>% 
+    merge_at(i=(nlev+1):(2*nlev), j=1) %>% 
+    merge_at(i=(2*nlev+1):(3*nlev), j=1) %>% 
+    ###
+    autofit(add_w=0.5) %>% 
+    set_caption(tab_title) %>%  
+    theme_vanilla()
+  
+  for (b in 1:nlev) {
+    # Add ANOVA results as footer statements for each level in group_1, and state whether significant result or not
+    # If not enough results for anova, then state that in footer. Otherwise print p-value, significance, and type of test used.
+    footer_value <- ifelse(res_kw[b] != 'Error',
+                         paste0(b,
+                                ') One-way Kruskal Wallis comparison between semesters for "',
+                                levels(data_set[[group_1]])[b][1],
+                                '" produces p-value of ',
+                                signif(p_kw[[b]], 2),
+                                ifelse(p_kw[b] <= 0.05,
+                                       ' - difference between semesters is significant',
+                                       ' - difference between semesters is not significant'
+                                       )
+                                ),
+                         paste0(b,
+                                ') Not enough observations to perform Kruskal-Wallis test for "',
+                                levels(data_set[[group_1]])[b][1],
+                                '"'
+                                )
+                        )
+    
+    # Also add appendage for Dunn test values, when p-value is significant. 
+    if (df_dunn[b] != 'Error' & p_kw[b] <= 0.05) {
+
+      # If any dunn test p-values are <=0.05, then add appendage. Otherwise skip. 
+      if (any(df_dunn[[b]]$p_adjusted <= 0.05)) {
+        
+        # Base footer
+        footer_append <- ". Dunn's test showed a significant difference between the paired semesters listed below:"
+
+        # Add footer for each significant semester pair. Note that p-value cutoff needs to be bonferroni corrected (divided by (num(semesters)-1)). 
+        for (k in 1:nrow(df_dunn[[b]])) {
+          if (df_dunn[[b]]$p_adjusted[k] <= (0.05/(length(levels(comb_data$Semester))-1))) { # Ho (p-value cutoff) bonferroni corrected by number of semesters
+            footer_append <- paste0(footer_append, '\n\t\t', df_dunn[[b]]$comparisons[k], ', p-value = ', signif(df_dunn[[b]]$p_adjusted[k], 2))
+          }
+        }
+        
+        # Combine footers
+        footer_final <- paste0(footer_value, footer_append)
+      }
+    } else {
+      footer_final <- footer_value
+    }
+    
+    # Add to flextable
+    flex %<>%
+      add_footer_row(top=FALSE,
+                     values = footer_final,
+                     colwidths=6)
+  }
+  
+  flex
+}
+
+# # Testing demographise....
+# 
+# comb_data %<>%
+#   mutate(`Student or Teacher` = factor(Q2.1, 
+#                                        levels=c(1, 2, 3),
+#                                        labels=c('Student', 'Teacher', 'Neither')))
+# 
+# demographise(group_1='Student or Teacher', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## Students or teachers? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+comb_data %<>%
+  mutate(`Student or Teacher` = factor(Q2.1, 
+                                       levels=c(1, 2, 3),
+                                       labels=c('Student', 'Teacher', 'Neither')))
+
+demographise(group_1='Student or Teacher', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(group_1='Student or Teacher', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(group_1='Student or Teacher', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for both students and teachers between S1 2021 and S2 2021, and a significant decrease in mental wellbeing for teachers between S1 2021 and S2 2021. 
+
+## Programme of study {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>% mutate(`Undergraduate or Postgraduate` = case_when(Q3.1 %in% 1:4 ~ 'Undergraduate', 
+                                                                  Q3.1 %in% 5:10 ~ 'Postgraduate', 
+                                                                  Q3.1_11_TEXT %in% c("Graduate Diploma in Science", 'Graduate Diploma', 'dimploa in applied science', 'Bachelor of Science (Honours)') ~ 'Undergraduate')
+) %>% 
+  mutate(`Undergraduate or Postgraduate` = factor(`Undergraduate or Postgraduate`, levels=c('Undergraduate', 'Postgraduate')))
+
+demographise(data=stud_data, group_1='Undergraduate or Postgraduate', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data=stud_data, group_1='Undergraduate or Postgraduate', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data=stud_data, group_1='Undergraduate or Postgraduate', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for undergraduates between S1 2021 and S2 2021.
+
+## Length of time studying at AUT {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>%
+  mutate('Years of study at AUT' = factor(Q3.2, levels = c(1:5),
+                     labels = c('First year',
+                                'Second year',
+                                'Third year', 
+                                'Fourth year',
+                                'More than 4 years')))
+
+demographise(data_set=stud_data, group_1='Years of study at AUT', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Years of study at AUT', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Years of study at AUT', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for first year students between S1 2021 and S2 2021.
+
+## Full time or part time study? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>%
+  mutate('Full time or part time' = factor(Q3.3, levels = c(1:2),
+                     labels = c('Part time',
+                                'Full time')))
+
+demographise(data_set=stud_data, group_1='Full time or part time', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Full time or part time', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Full time or part time', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for full time students between S1 2021 and S2 2021.
+
+## Engaged in other employment or voluntary work while studying? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>%
+  mutate('Engaged in other employment or voluntary work while studying' = factor(Q3.4, levels = c(1:3),
+                     labels = c('Not employed',
+                                'Part time employment (<= 20 hrs per week)',
+                                'Full time employment (> 20 hrs per week)')))
+
+demographise(data_set=stud_data, group_1='Engaged in other employment or voluntary work while studying', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Engaged in other employment or voluntary work while studying', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Engaged in other employment or voluntary work while studying', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for students engaged in part-time employment between S1 2021 and S2 2021.
+
+## Previously completed other tertiary studies (other degree, apprenticeship)? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>%
+  mutate('Previously completed other tertiary studies' = factor(Q3.5, levels = c(1:2),
+                     labels = c('No',
+                                'Yes')))
+
+demographise(data_set=stud_data, group_1='Previously completed other tertiary studies', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Previously completed other tertiary studies', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Previously completed other tertiary studies', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+## One-way commute time {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+comb_data %<>%
+  mutate('Commute time (one way)' = case_when(Q3.6_1 %in% 0:19 ~ '< 20 mins',
+                                              Q3.6_1 %in% 20:39 ~ '20 - 39 mins',
+                                              Q3.6_1 %in% 40:59 ~ '40 - 59 mins',
+                                              Q3.6_1 %in% 60:120 ~ '>= 60 mins')) %>% 
+  mutate('Commute time (one way)' = factor(`Commute time (one way)`,
+                                             levels = c('< 20 mins',
+                                                        '20 - 39 mins',
+                                                        '40 - 59 mins', 
+                                                        '>= 60 mins')))
+
+demographise(group_1='Commute time (one way)', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(group_1='Commute time (one way)', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(group_1='Commute time (one way)', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+## Age {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+comb_data %<>%
+  mutate('Age' = factor(Q4.1, 
+                        levels=c(1,2,3,4,5,6,8),
+                        labels=c('< 20 years old', 
+                                 '20-24',
+                                 '25-29',
+                                 '30-39',
+                                 '40-49',
+                                 '50 and above',
+                                 'Prefer not to answer')))
+
+demographise(group_1='Age', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(group_1='Age', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(group_1='Age', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for participants in the 20-24 age bracket, between S1 2021 and S2 2021.
+
+## Gender {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+comb_data %<>%
+  mutate('Gender' = factor(Q4.2, 
+                        levels=c(1,2,3,4),
+                        labels=c('Male', 
+                                 'Female',
+                                 'Non-binary gender',
+                                 'Prefer not to answer')))
+
+demographise(group_1='Gender', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(group_1='Gender', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(group_1='Gender', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+## Domestic or International student? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+stud_data %<>%
+  mutate('Domestic or International student' = factor(Q4.3, 
+                        levels=c(1,2),
+                        labels=c('Domestic students',
+                                 'International students')))
+
+demographise(data_set=stud_data, group_1='Domestic or International student', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Domestic or International student', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=stud_data, group_1='Domestic or International student', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for domestic students between S1 2021 and S2 2021.
+
+## Ethnicity {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+# Because ethnicity is not grouped correctly, we need to pivot data long to create a new variable for ethnicity. This will repeat several of the wellbeing values, but that's OK. 
+ethnicity_data <- comb_data %>% 
+  select(Semester, Q5.1, Q5.2, Q5.4_total_metric_score, Q4.4_1_nz_european:Q4.4_6_other) %>% 
+  pivot_longer(Q4.4_1_nz_european:Q4.4_6_other, names_to='Ethnicity_names') %>% 
+  filter(value==1) %>% 
+  mutate(Ethnicity = case_when(Ethnicity_names == 'Q4.4_1_nz_european' ~ 'NZ European',
+                               Ethnicity_names == 'Q4.4_2_maori' ~ 'Maori',
+                               Ethnicity_names == 'Q4.4_3_pacific' ~ 'Pacific',
+                               Ethnicity_names == 'Q4.4_4_asian' ~ 'Asian',
+                               Ethnicity_names == 'Q4.4_5_european' ~ 'European',
+                               Ethnicity_names == 'Q4.4_6_other' ~ 'Other') %>% 
+           factor())
+
+demographise(data_set=ethnicity_data, group_1='Ethnicity', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=ethnicity_data, group_1='Ethnicity', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=ethnicity_data, group_1='Ethnicity', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+Note that for ethnicity, respondents were able to select multiple ethnic groups; therefore, the number of responses in the tables above is higher than the total number of respondents.
+
+## {-}
+
+## Access to electronic resources {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+# Because the electronic resources variable is not grouped correctly, we need to pivot data long to create a new variable for electronic resources. This will repeat several of the wellbeing values, but that's OK. 
+electronic_data <- comb_data %>% 
+  select(Semester, Q5.1, Q5.2, Q5.4_total_metric_score, Q4.5_1_laptop:Q4.5_5_no_access) %>% 
+  pivot_longer(Q4.5_1_laptop:Q4.5_5_no_access, names_to='Electronic_names') %>% 
+  filter(value==1) %>% 
+  mutate('Access to electronic resources' = case_when(Electronic_names == 'Q4.5_1_laptop' ~ 'Laptop/notebook computer',
+                               Electronic_names == 'Q4.5_2_desktop' ~ 'Desktop computer',
+                               Electronic_names == 'Q4.5_3_tablet' ~ 'Tablet/iPad',
+                               Electronic_names == 'Q4.5_4_smart_phone' ~ 'Smartphone',
+                               Electronic_names == 'Q4.5_5_no_access' ~ 'No personal access to these devices') %>% 
+           factor())
+
+demographise(data_set=electronic_data, group_1='Access to electronic resources', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(data_set=electronic_data, group_1='Access to electronic resources', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(data_set=electronic_data, group_1='Access to electronic resources', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+From the tables above, we can conclude that there was a significant decrease in social wellbeing for participants with a laptop/notebook computer and/or smartphone between S1 2021 and S2 2021.
+
+## Type of internet connection at home? {.tabset}
+
+### Current physical wellbeing
+
+```{r}
+
+comb_data %<>%
+  mutate('Type of internet connection at home' = factor(Q4.6, 
+                        levels=c(1:8),
+                        labels=c('Ultrafast Fibre',
+                                 'Broadband ADSL/VDSL',
+                                 'Satellite or Wireless', 
+                                 'Rural broadband',
+                                 'Dialup internet', 
+                                 'No internet at home', 
+                                 "Don't know",
+                                 'Other')))
+
+demographise(group_1='Type of internet connection at home', summ_1='Q5.1', tab_title='Current physical wellbeing')
+
+```
+
+### Current social wellbeing
+
+```{r}
+
+demographise(group_1='Type of internet connection at home', summ_1='Q5.2', tab_title='Current social wellbeing')
+
+```
+
+### Current mental wellbeing
+
+```{r}
+
+demographise(group_1='Type of internet connection at home', summ_1='Q5.4_total_metric_score', tab_title='Current mental wellbeing')
+
+```
+
+## {-}
+
+<!-- # Comparison of online/on campus differences -->
+
+<!-- ```{r} -->
+
+<!-- comb_data %<>% -->
+<!--   mutate('Lecture or tutorial classes' = factor(Q6.1_1,  -->
+<!--                         levels=c(1:5), -->
+<!--                         labels=c('Very negatively', -->
+<!--                                  'Somewhat negatively', -->
+<!--                                  'Somewhat positively', -->
+<!--                                  'Very positively', -->
+<!--                                  'Have not used/NA'))) -->
+
+<!-- demographise(summ_1='Q6.1_1', tab_title='Current mental wellbeing') -->
+
+<!-- ``` -->
+
+
+
+
+<!-- # Comparison of learning experiences -->
